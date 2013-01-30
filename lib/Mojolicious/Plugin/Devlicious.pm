@@ -9,6 +9,7 @@ sub register {
   my $devlicious = Devlicious->new($config || {});
   $devlicious->ua($app->ua)->log($app->log)->name(ref $app);
   $devlicious->watch_ua($app->ua);
+  $devlicious->watch_log($app->log);
   $devlicious->connect;
 }
 

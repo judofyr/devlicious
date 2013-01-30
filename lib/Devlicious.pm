@@ -88,6 +88,60 @@ for my $name (keys %capabilities) {
   };
 }
 
+## Console
+
+has console_enabled => 0;
+has console_logs => sub { [] };
+has console_message => sub {
+  my $self = shift;
+  sub {
+    my ($log, $level, @lines) = @_;
+    $self->log_message($level, @lines);
+  }
+};
+
+sub watch_log {
+  my ($self, @log) = @_;
+  push $self->console_logs, @log;
+
+  if ($self->console_enabled) {
+    for my $log (@log) {
+      $log->on(message => $self->console_message);
+    }
+  }
+}
+
+sub Console_enable {
+  my $self = shift;
+  return if $self->console_enabled;
+
+  for my $log (@{$self->console_logs}) {
+    $log->on(message => $self->console_message);
+  }
+}
+
+my $log_mapping = {
+  info => 'log',
+  warn => 'warning',
+  fatal => 'error',
+};
+
+sub log_message {
+  my ($self, $level, $line) = @_;
+  $self->send(
+    {
+      method => 'Console.messageAdded',
+      params => {
+        message => {
+          level => $log_mapping->{$level} || $level,
+          text => $line,
+          source => 'other',
+        }
+      }
+    }
+  );
+}
+
 ## Network
 
 has network_enabled => 0;
