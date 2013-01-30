@@ -47,6 +47,10 @@ sub connect_client {
     warn "Client -> Server: " . $msg;
     $self->c->send($msg);
   });
+
+  $client->on(finish => sub {
+    $self->client(0);
+  });
 }
 
 sub disconnect_client {
