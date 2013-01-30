@@ -1,12 +1,14 @@
 package Devlicious::Gateway;
 use Mojolicious::Lite;
+use lib 'lib';
+use Devlicious::Backend;
 
 my $backends = {};
 my $pageid = 0;
 
 get '/' => sub {
   my $self = shift;
-  $self->stash(backends => [keys %$backends]);
+  $self->stash(backends => $backends);
   $self->render('index');
 };
 
@@ -19,15 +21,15 @@ helper devtools_url => sub {
 websocket '/connect' => sub {
   my $self = shift;
   Mojo::IOLoop->stream($self->tx->connection)->timeout(0);
-  $self->rendered(101) if $self->tx->is_websocket;
 
   my $page = ++$pageid;
-  $backends->{$page} = $self;
+  my $backend = Devlicious::Backend->new(
+    c => $self,
+    id => $page
+  );
 
-  $self->on(finish => sub {
-    warn "finish";
-    delete $backends->{$page};
-  });
+  $backend->setup;
+  $backends->{$page} = $backend;
 };
 
 websocket '/devtools/page/:page' => sub {
@@ -35,17 +37,9 @@ websocket '/devtools/page/:page' => sub {
   my $page = $self->stash('page');
   Mojo::IOLoop->stream($self->tx->connection)->timeout(0);
 
-  my $backend = $backends->{$page};
-
-  $self->on(message => sub {
-    warn $_[1];
-    $backend->send(pop)
-  });
-
-  $backend->on(message => sub {
-    warn $_[1];
-    $self->send(pop);
-  });
+  if (my $backend = $backends->{$page}) {
+    $backend->connect_client($self);
+  }
 };
 
 use Mojolicious::Static;
@@ -66,8 +60,8 @@ __DATA__
 @@ index.html.ep
 <h2>Backend</h2>
 <ul>
-% for my $backend (@$backends) {
-  <li><%= link_to($backend, devtools_url($backend)) %></li>
+% for my $page (keys %$backends) {
+  <li><%= link_to($backends->{$page}->name, devtools_url($page)) %></li>
 % }
 </ul>
 
