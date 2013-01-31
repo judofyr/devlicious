@@ -1,1 +1,4 @@
-/devtools_frontend
+/Makefile
+/MYMETA.*
+/blib
+/pm_to_blib
