@@ -1,5 +1,6 @@
 use Mojolicious::Lite;
-use lib 'lib';
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 
 plugin 'Devlicious';
 

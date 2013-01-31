@@ -17,7 +17,7 @@ WriteMakefile(
       repository  => 'http://github.com/judofyr/devlicious',
       bugtracker  => 'http://github.com/judofyr/devlicious/issues'
     },
-    no_index => {directory => ['t']}
+    no_index => {directory => ['t', 'examples']}
   },
   EXE_FILES => ['script/devlicious'],
   test      => {TESTS => 't/*.t'}
