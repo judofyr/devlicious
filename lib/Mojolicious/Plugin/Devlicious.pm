@@ -1,12 +1,12 @@
 package Mojolicious::Plugin::Devlicious;
 use Mojo::Base 'Mojolicious::Plugin';
-use Devlicious;
+use Devlicious::Client;
 
 
 sub register {
   my ($self, $app, $config) = @_;
 
-  my $devlicious = Devlicious->new($config || {});
+  my $devlicious = Devlicious::Client->new($config || {});
   $devlicious->ua($app->ua)->log($app->log)->name(ref $app);
   $devlicious->watch_ua($app->ua);
   $devlicious->watch_log($app->log);

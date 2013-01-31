@@ -42,17 +42,6 @@ websocket '/devtools/page/:page' => sub {
   }
 };
 
-use Mojolicious::Static;
-my $devtools = Mojolicious::Static->new;
-push $devtools->paths, app->home->rel_dir('../../devtools_frontend');
-
-get '/devtools/*path' => sub {
-  my $self = shift;
-  $devtools->dispatch($self) || $self->render_not_found;
-};
-
-app->start;
-
 1;
 
 __DATA__

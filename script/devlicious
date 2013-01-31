@@ -1,0 +1,49 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+use FindBin;
+use lib "$FindBin::Bin/../lib";
+use Devlicious;
+
+use Getopt::Long qw(GetOptions :config no_auto_abbrev no_ignore_case);
+
+my %commands = (
+  download => \&Devlicious::download,
+  run      => \&Devlicious::run,
+);
+
+GetOptions(
+  'h|help'    => \my $help,
+  'v|version' => \my $version,
+);
+
+my $help_msg = <<"EOF";
+usage: $0 [OPTIONS] COMMAND
+
+These options are available:
+  -h, --help      Show this message.
+  -v, --version   Show version.
+
+These commands are possible:
+  download        Download Chrome DevTools frontend
+  run             Runs the server
+EOF
+
+if ($help) {
+  print $help_msg;
+  exit;
+}
+
+if ($version) {
+  die;
+}
+
+my $command = shift;
+
+die $help_msg unless $command;
+die "Unknown command: $command\n$help_msg" unless $commands{$command};
+
+$commands{$command}->();
+
