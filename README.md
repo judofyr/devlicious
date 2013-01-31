@@ -11,6 +11,7 @@ In one terminal:
 ```sh
 # Download DevTools (only needed once)
 $ devlicious download
+
 # Run gateway
 $ devlicious run
 ```
@@ -20,4 +21,7 @@ In your application:
 ```perl
 plugin 'Devlicious';
 ```
+
+Run your application, then open the gateway (http://localhost:9000/) in
+your browser and click on the application name to inspect.
 
