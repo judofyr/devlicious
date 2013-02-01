@@ -50,6 +50,7 @@ sub connect_client {
 
   $client->on(finish => sub {
     $self->client(0);
+    $self->c->send('{"method":"disable"}');
   });
 }
 

@@ -6,7 +6,15 @@ use warnings;
 my $w;
 sub done { $w = 1 }
 sub w {
-  Mojo::IOLoop->one_tick until $w;
+  my $start = time;
+
+  until ($w) {
+    Mojo::IOLoop->one_tick;
+    if (time - $start > 2) {
+      BAIL_OUT("Timeout");
+    }
+  }
+
   $w = undef;
 }
 
@@ -43,7 +51,8 @@ $t->ua->websocket('/devtools/page/1', sub {
 w;
 
 # Backend to client
-$btx->send('{"hello":"world"}', \&done);
+$btx->send('{"hello":"world"}');
+
 $ctx->once(message => sub {
   my $msg = pop;
   is $msg, '{"hello":"world"}';
@@ -53,10 +62,33 @@ $ctx->once(message => sub {
 w;
 
 # Client to backend
-$ctx->send('{"hello":"world"}', \&done);
+$ctx->send('{"hello":"world"}');
 $btx->once(message => sub {
   my $msg = pop;
   is $msg, '{"hello":"world"}';
+  done;
+});
+
+w;
+
+# Antother client connects
+
+# Wait until the current client has been (properly) disconnected
+$ctx->once(finish => \&done);
+
+# Connect a new client
+$t->ua->websocket('/devtools/page/1', sub {
+  $ctx = pop;
+  ok !$ctx->error, $ctx->error;
+});
+
+w;
+
+# Close the client
+$ctx->finish;
+$btx->once(message => sub {
+  my $msg = pop;
+  is $msg, '{"method":"disable"}', "Backend gets disconnect message";
   done;
 });
 
