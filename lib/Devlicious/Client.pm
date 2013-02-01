@@ -73,6 +73,12 @@ sub send {
   $self->tx->send($JSON->encode($obj));
 }
 
+sub disable {
+  my $self = shift;
+  $self->Network_disable;
+  $self->Console_disable;
+}
+
 ## Capabilities
 
 my %capabilities = (
@@ -114,9 +120,20 @@ sub watch_log {
 sub Console_enable {
   my $self = shift;
   return if $self->console_enabled;
+  $self->console_enabled(1);
 
   for my $log (@{$self->console_logs}) {
     $log->on(message => $self->console_message);
+  }
+}
+
+sub Console_disable {
+  my $self = shift;
+  return unless $self->console_enabled;
+  $self->console_enabled(0);
+
+  for my $log (@{$self->console_logs}) {
+    $log->unsubscribe(message => $self->console_message);
   }
 }
 
@@ -169,6 +186,16 @@ sub Network_enable {
 
   for my $ua (@{$self->network_uas}) {
     $ua->on(start => $self->network_start);
+  }
+}
+
+sub Network_disable {
+  my $self = shift;
+  return unless $self->network_enabled;
+  $self->network_enabled(0);
+
+  for my $ua (@{$self->network_uas}) {
+    $ua->unsubscribe(start => $self->network_start);
   }
 }
 
