@@ -47,13 +47,23 @@ websocket '/devtools/page/:page' => sub {
 __DATA__
 
 @@ index.html.ep
-<h2>Backend</h2>
-<ul>
-% for my $page (keys %$backends) {
-  <li><%= link_to($backends->{$page}->name, devtools_url($page)) %></li>
+<h1>Devlicious</h1>
+
+% if (%$backends) {
+  <h2>Connected backends</h2>
+  <ul>
+%   for my $page (keys %$backends) {
+      <li>
+        <%= link_to($backends->{$page}->name, devtools_url($page)) %>
+%       if (my $client = $backends->{$page}->client) {
+          (client connected: <%= $client->tx->remote_address %>)
+%       }
+      </li>
+%   }
+  </ul>
+% } else {
+  <h2>No backends connected</h2>
+  <p>Please add the Devlicious plugin to your application:</p>
+  <pre><code>plugin 'Devlicious'</code></pre>
 % }
-</ul>
-
-
-
 
