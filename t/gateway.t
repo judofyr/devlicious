@@ -50,6 +50,8 @@ $ctx->once(message => sub {
   done;
 });
 
+w;
+
 # Client to backend
 $ctx->send('{"hello":"world"}', \&done);
 $btx->once(message => sub {
@@ -57,6 +59,8 @@ $btx->once(message => sub {
   is $msg, '{"hello":"world"}';
   done;
 });
+
+w;
 
 done_testing;
 
