@@ -10,6 +10,7 @@ sub register {
   $devlicious->ua($app->ua)->log($app->log)->name(ref $app);
   $devlicious->watch_ua($app->ua);
   $devlicious->watch_log($app->log);
+  $devlicious->config($app->config);
   $devlicious->connect;
 }
 

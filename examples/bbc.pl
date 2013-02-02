@@ -4,6 +4,13 @@ use lib "$FindBin::Bin/../lib";
 
 plugin 'Devlicious';
 
+app->config->{a} = 1;
+app->config->{foo} = [
+  1,
+  {bar => 1},
+  [1, 2],
+];
+
 get '/' => sub {
   my $self = shift;
   $self->render_later;
