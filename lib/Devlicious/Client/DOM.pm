@@ -4,6 +4,8 @@ use Mojo::Base -base;
 has 'client';
 sub send { shift->client->send(@_) }
 
+has [qw/config route/];
+
 my $ELEMENT_NODE = 1;
 my $ATTRIBUTE_NODE = 2;
 my $TEXT_NODE = 3;
@@ -70,7 +72,7 @@ sub DOM_requestChildNodes {
 
 has config_node => sub {
   my $self = shift;
-  $self->build_config_node($self->client->config);
+  $self->build_config_node($self->config);
 };
 
 sub build_config_node {
@@ -121,7 +123,7 @@ sub config_children {
 
 has route_node => sub {
   my $self = shift;
-  $self->build_route_node($self->client->route);
+  $self->build_route_node($self->route);
 };
 
 sub build_route_node {
