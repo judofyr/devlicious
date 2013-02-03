@@ -16,7 +16,7 @@ my $JSON = Mojo::JSON->new;
 has [qw/ua tx/];
 has log => sub { Mojo::Log->new };
 has gateway => 'ws://localhost:9000';
-has 'config';
+has [qw/config route/];
 
 has name => 'Devlicious';
 

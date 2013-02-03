@@ -18,6 +18,7 @@ my $DOCUMENT_FRAGMENT_NODE = 11;
 my $NOTATION_NODE = 12;
 
 sub node_id { ++shift->{node_id} }
+has mapping => sub { {} };
 
 has doc_node => sub {
   my $self = shift;
@@ -35,21 +36,42 @@ has mojo_node => sub {
     nodeId => $self->node_id,
     nodeType => $ELEMENT_NODE,
     nodeName => 'mojo',
-    children => [$self->config_node],
+    children => [$self->config_node, $self->route_node],
   }
-};
-
-has config_mapping => sub { {} };
-
-has config_node => sub {
-  my $self = shift;
-  $self->build_config_node($self->client->config);
 };
 
 sub DOM_getDocument {
   my ($self, $params, $cb) = @_;
   $cb->({root => $self->doc_node});
 }
+
+sub DOM_requestChildNodes {
+  my ($self, $params, $cb) = @_;
+  my $id = $params->{nodeId};
+  my $mapping = $self->mapping->{$id};
+  return $cb->() unless $mapping;
+
+  my ($type, @rest) = @$mapping;
+  my $meth = $type."_children";
+  my @nodes = $self->$meth(@rest);
+
+  $self->send(
+    {
+      method => 'DOM.setChildNodes',
+      params => {
+        parentId => int($id),
+        nodes => \@nodes,
+      }
+    }
+  );
+
+  $cb->();
+}
+
+has config_node => sub {
+  my $self = shift;
+  $self->build_config_node($self->client->config);
+};
 
 sub build_config_node {
   my ($self, $value, $key) = @_;
@@ -69,7 +91,7 @@ sub build_config_node {
 
 
   if ($type) {
-    $self->config_mapping->{$id} = $value;
+    $self->mapping->{$id} = [config => $value];
     $node->{childNodeCount} = $type eq 'HASH' ? (keys %$value) : (@$value);
   } else {
     $node->{children} = [{
@@ -83,36 +105,57 @@ sub build_config_node {
   $node;
 }
 
-sub DOM_requestChildNodes {
-  my ($self, $params, $cb) = @_;
-  my $config = $self->config_mapping->{$params->{nodeId}};
-  return unless $config;
-
-  my @nodes;
+sub config_children {
+  my ($self, $config) = @_;
 
   if (ref $config eq 'HASH') {
-    for my $key (keys %$config) {
-      my $node = $self->build_config_node($config->{$key}, $key);
-      push @nodes, $node;
-    }
+    map {
+      $self->build_config_node($config->{$_}, $_);
+    } keys %$config;
   } else {
-    for my $value (@$config) {
-      my $node = $self->build_config_node($value);
-      push @nodes, $node;
-    }
+    map {
+      $self->build_config_node($_);
+    } @$config;
+  }
+}
+
+has route_node => sub {
+  my $self = shift;
+  $self->build_route_node($self->client->route);
+};
+
+sub build_route_node {
+  my ($self, $route) = @_;
+
+  my $id = $self->node_id;
+  my $node = {
+    nodeId => $id,
+    nodeType => $ELEMENT_NODE,
+    nodeName => "route",
+    childNodeCount => scalar(@{$route->children}),
+    attributes => [],
+  };
+
+  $self->mapping->{$id} = [route => $route];
+
+  my $attr = $node->{attributes};
+
+  my $pattern = $route->pattern;
+  push @$attr, pattern => $pattern->pattern if $pattern->pattern;
+  push @$attr, name => $route->name if $route->name;
+  push @$attr, bridge => "1" if $route->inline;
+
+  for my $key (keys %{$pattern->defaults}) {
+    push @$attr, "default-$key" => $pattern->defaults->{$key};
   }
 
-  $self->send(
-    {
-      method => 'DOM.setChildNodes',
-      params => {
-        parentId => int($params->{nodeId}),
-        nodes => \@nodes,
-      }
-    }
-  );
+  $node;
+}
 
-  $cb->();
+sub route_children {
+  my ($self, $route) = @_;
+
+  map { $self->build_route_node($_) } @{$route->children};
 }
 
 1;

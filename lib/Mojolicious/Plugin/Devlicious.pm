@@ -11,6 +11,7 @@ sub register {
   $devlicious->watch_ua($app->ua);
   $devlicious->watch_log($app->log);
   $devlicious->config($app->config);
+  $devlicious->route($app->routes);
   $devlicious->connect;
 }
 
