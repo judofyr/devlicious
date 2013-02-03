@@ -109,6 +109,7 @@ sub disable {
   my $self = shift;
   $self->network->Network_disable;
   $self->console->Console_disable;
+  delete $self->{dom};
 }
 
 ## Capabilities
