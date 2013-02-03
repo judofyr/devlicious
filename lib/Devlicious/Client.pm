@@ -21,20 +21,23 @@ has name => 'Devlicious';
 
 has network => sub {
   my $self = shift;
-  weaken $self;
-  Devlicious::Client::Network->new(client => $self);
+  my $network = Devlicious::Client::Network->new(client => $self);
+  weaken $network->{client};
+  $network;
 };
 
 has console => sub {
   my $self = shift;
-  weaken $self;
-  Devlicious::Client::Console->new(client => $self);
+  my $console = Devlicious::Client::Console->new(client => $self);
+  weaken $console->{client};
+  $console;
 };
 
 has dom => sub {
   my $self = shift;
-  weaken $self;
-  Devlicious::Client::DOM->new(client => $self);
+  my $dom = Devlicious::Client::DOM->new(client => $self);
+  weaken $dom->{client};
+  $dom;
 };
 
 has handlers => sub {
