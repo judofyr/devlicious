@@ -6,6 +6,11 @@ use Mojo::UserAgent;
 use Mojo::Log;
 use Mojo::Util 'monkey_patch';
 use Time::HiRes 'time';
+use Scalar::Util 'weaken';
+
+use Devlicious::Client::Network;
+use Devlicious::Client::Console;
+use Devlicious::Client::DOM;
 
 my $JSON = Mojo::JSON->new;
 has [qw/ua tx/];
@@ -14,6 +19,29 @@ has gateway => 'ws://localhost:9000';
 has 'config';
 
 has name => 'Devlicious';
+
+has network => sub {
+  my $self = shift;
+  weaken $self;
+  Devlicious::Client::Network->new(client => $self);
+};
+
+has console => sub {
+  my $self = shift;
+  weaken $self;
+  Devlicious::Client::Console->new(client => $self);
+};
+
+has dom => sub {
+  my $self = shift;
+  weaken $self;
+  Devlicious::Client::DOM->new(client => $self);
+};
+
+has handlers => sub {
+  my $self = shift;
+  [$self, $self->network, $self->console, $self->dom];
+};
 
 sub is_connected { !!shift->tx }
 
@@ -52,14 +80,18 @@ sub on_message {
     $meth =~ s/\./_/;
     my $params = $obj->{params} // {};
 
-    if ($self->can($meth)) {
-      # Callback for req/res
-      my $cb = sub {
-        my $res = { id => $obj->{id}, result => pop };
-        $self->send($res);
-      };
 
-      $self->$meth($params, $cb);
+    for my $handler (@{$self->handlers}) {
+      if ($handler->can($meth)) {
+        my $cb = sub {
+          my $res = { id => $obj->{id}, result => pop };
+          $self->send($res);
+        };
+
+        $handler->$meth($params, $cb);
+
+        return;
+      }
     }
   }
 }
@@ -76,8 +108,8 @@ sub send {
 
 sub disable {
   my $self = shift;
-  $self->Network_disable;
-  $self->Console_disable;
+  $self->network->Network_disable;
+  $self->console->Console_disable;
 }
 
 ## Capabilities
@@ -95,306 +127,12 @@ for my $name (keys %capabilities) {
   };
 }
 
-## Console
-
-has console_enabled => 0;
-has console_logs => sub { [] };
-has console_message => sub {
-  my $self = shift;
-  sub {
-    my ($log, $level, @lines) = @_;
-    $self->log_message($level, @lines);
-  }
-};
-
 sub watch_log {
-  my ($self, @log) = @_;
-  push $self->console_logs, @log;
-
-  if ($self->console_enabled) {
-    for my $log (@log) {
-      $log->on(message => $self->console_message);
-    }
-  }
+  shift->console->watch_log(@_);
 }
-
-sub Console_enable {
-  my $self = shift;
-  return if $self->console_enabled;
-  $self->console_enabled(1);
-
-  for my $log (@{$self->console_logs}) {
-    $log->on(message => $self->console_message);
-  }
-}
-
-sub Console_disable {
-  my $self = shift;
-  return unless $self->console_enabled;
-  $self->console_enabled(0);
-
-  for my $log (@{$self->console_logs}) {
-    $log->unsubscribe(message => $self->console_message);
-  }
-}
-
-my $log_mapping = {
-  info => 'log',
-  warn => 'warning',
-  fatal => 'error',
-};
-
-sub log_message {
-  my ($self, $level, $line) = @_;
-  $self->send(
-    {
-      method => 'Console.messageAdded',
-      params => {
-        message => {
-          level => $log_mapping->{$level} || $level,
-          text => $line,
-          source => 'other',
-        }
-      }
-    }
-  );
-}
-
-## Network
-
-has network_enabled => 0;
-has network_uas => sub { [] };
-has network_start => sub {
-  my $self = shift;
-  sub { $self->ua_start(pop) }
-};
 
 sub watch_ua {
-  my ($self, @ua) = @_;
-  push $self->network_uas, @ua;
-
-  if ($self->network_enabled) {
-    for my $ua (@ua) {
-      $ua->on(start => $self->network_start);
-    }
-  }
-}
-
-sub Network_enable {
-  my $self = shift;
-  return if $self->network_enabled;
-  $self->network_enabled(1);
-
-  for my $ua (@{$self->network_uas}) {
-    $ua->on(start => $self->network_start);
-  }
-}
-
-sub Network_disable {
-  my $self = shift;
-  return unless $self->network_enabled;
-  $self->network_enabled(0);
-
-  for my $ua (@{$self->network_uas}) {
-    $ua->unsubscribe(start => $self->network_start);
-  }
-}
-
-sub ua_start {
-  my ($self, $tx) = @_;
-
-  my $reqId = "".++$self->{requestId};
-
-  $self->send(
-    {
-      method => 'Network.requestWillBeSent',
-      params => {
-        requestId => $reqId,
-        loaderId => "loader",
-        documentURL => $tx->req->url->to_abs,
-        request => {
-          method => $tx->req->method,
-          url => $tx->req->url->to_abs,
-          headers => $tx->req->headers->to_hash
-        },
-        timestamp => time,
-        initiator => {
-          type => 'other'
-        },
-      }
-    }
-  );
-
-  $tx->res->content->on(body => sub {
-    $self->send(
-      {
-        method => 'Network.responseReceived',
-        params => {
-          requestId => $reqId,
-          loaderId => "loader",
-          timestamp => time,
-          type => 'Other',
-          response => {
-            connectionId => 1,
-            connectionReused => $JSON->false,
-            headers => $tx->res->headers->to_hash,
-            mimeType => $tx->res->headers->content_type,
-            status => $tx->res->code,
-            statusText => $tx->res->message || $tx->res->default_message,
-            url => $tx->req->url->to_abs,
-          }
-        }
-      }
-    );
-  });
-
-  $tx->res->content->on(read => sub {
-    my $bytes = pop;
-    $self->send(
-      {
-        method => 'Network.dataReceived',
-        params => {
-          requestId => $reqId,
-          timestamp => time,
-          dataLength => length($bytes),
-          encodedDataLength => length($bytes),
-        }
-      }
-    );
-  });
-
-  $tx->on(finish => sub {
-    $self->send(
-      {
-        method => 'Network.loadingFinished',
-        params => {
-          requestId => $reqId,
-          timestamp => time,
-        }
-      }
-    );
-  });
-}
-
-## DOM
-
-my $ELEMENT_NODE = 1;
-my $ATTRIBUTE_NODE = 2;
-my $TEXT_NODE = 3;
-my $CDATA_SECTION_NODE = 4;
-my $ENTITY_REFERENCE_NODE = 5;
-my $ENTITY_NODE = 6;
-my $PROCESSING_INSTRUCTION_NODE = 7;
-my $COMMENT_NODE = 8;
-my $DOCUMENT_NODE = 9;
-my $DOCUMENT_TYPE_NODE = 10;
-my $DOCUMENT_FRAGMENT_NODE = 11;
-my $NOTATION_NODE = 12;
-
-sub node_id { ++shift->{node_id} }
-
-has doc_node => sub {
-  my $self = shift;
-  {
-    nodeId => $self->node_id,
-    nodeType => $DOCUMENT_NODE,
-    nodeName => '#document',
-    children => [$self->mojo_node],
-  }
-};
-
-has mojo_node => sub {
-  my $self = shift;
-  {
-    nodeId => $self->node_id,
-    nodeType => $ELEMENT_NODE,
-    nodeName => 'mojo',
-    children => [$self->config_node],
-  }
-};
-
-has config_mapping => sub { {} };
-
-has config_node => sub {
-  my $self = shift;
-  my $id = $self->node_id;
-  $self->config_mapping->{$id} = $self->config;
-
-  {
-    nodeId => int($id),
-    nodeType => $ELEMENT_NODE,
-    nodeName => 'config',
-    childNodeCount => scalar(keys %{$self->config}),
-  }
-};
-
-sub DOM_getDocument {
-  my ($self, $params, $cb) = @_;
-  $cb->({root => $self->doc_node});
-}
-
-sub build_config_node {
-  my ($self, $value, $key) = @_;
-
-  my $id = $self->node_id;
-  my $node = {
-    nodeId => $id,
-    nodeType => $ELEMENT_NODE,
-    nodeName => "config",
-    attributes => [],
-  };
-
-  my $type = ref($value) // '';
-
-  push @{$node->{attributes}}, key => $key if $key;
-  push @{$node->{attributes}}, type => lc($type) if $type;
-
-
-  if ($type) {
-    $self->config_mapping->{$id} = $value;
-    $node->{childNodeCount} = $type eq 'HASH' ? (keys %$value) : (@$value);
-  } else {
-    $node->{children} = [{
-      nodeId => $self->node_id,
-      nodeType => $TEXT_NODE,
-      nodeName => '#text',
-      nodeValue => "".$value,
-    }];
-  }
-
-  $node;
-}
-
-sub DOM_requestChildNodes {
-  my ($self, $params, $cb) = @_;
-  my $config = $self->config_mapping->{$params->{nodeId}};
-  return unless $config;
-
-  my @nodes;
-
-  if (ref $config eq 'HASH') {
-    for my $key (keys %$config) {
-      my $node = $self->build_config_node($config->{$key}, $key);
-      push @nodes, $node;
-    }
-  } else {
-    for my $value (@$config) {
-      my $node = $self->build_config_node($value);
-      push @nodes, $node;
-    }
-  }
-
-  $self->send(
-    {
-      method => 'DOM.setChildNodes',
-      params => {
-        parentId => int($params->{nodeId}),
-        nodes => \@nodes,
-      }
-    }
-  );
-
-  $cb->();
+  shift->network->watch_ua(@_);
 }
 
 1;
