@@ -94,5 +94,19 @@ $btx->once(message => sub {
 
 w;
 
+# Close the backend
+$btx->once(finish => \&done);
+$btx->finish;
+w;
+
+$t->ua->get('/', sub {
+  my $tx = pop;
+  ok !$tx->error, $tx->error;
+  like $tx->res->body, qr/No backends/;
+  done;
+});
+
+w;
+
 done_testing;
 

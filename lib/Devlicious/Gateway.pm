@@ -30,6 +30,10 @@ websocket '/connect' => sub {
 
   $backend->setup;
   $backends->{$page} = $backend;
+
+  $self->on(finish => sub {
+    delete $backends->{$page};
+  });
 };
 
 websocket '/devtools/page/:page' => sub {
