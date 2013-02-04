@@ -84,6 +84,7 @@ sub connect {
       # Turn it into a strong reference
       $self->{ua} = $self->{ua};
       delete $self->{tx};
+      $self->disable;
       $self->log->debug("Devlicious disconnected");
     });
   });
