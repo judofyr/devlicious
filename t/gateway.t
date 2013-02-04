@@ -108,5 +108,15 @@ $t->ua->get('/', sub {
 
 w;
 
+# Connect to a backend that doesn't exist
+$t->ua->websocket('/devtools/page/1', sub {
+  $ctx = pop;
+  ok $ctx->error, "Connection failed";
+  is $ctx->res->code, 404;
+  done;
+});
+
+w;
+
 done_testing;
 

@@ -39,10 +39,12 @@ websocket '/connect' => sub {
 websocket '/devtools/page/:page' => sub {
   my $self = shift;
   my $page = $self->stash('page');
-  Mojo::IOLoop->stream($self->tx->connection)->timeout(0);
 
   if (my $backend = $backends->{$page}) {
+    Mojo::IOLoop->stream($self->tx->connection)->timeout(0);
     $backend->connect_client($self);
+  } else {
+    $self->render_not_found;
   }
 };
 
