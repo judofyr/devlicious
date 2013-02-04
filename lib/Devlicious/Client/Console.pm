@@ -1,6 +1,8 @@
 package Devlicious::Client::Console;
 use Mojo::Base -base;
 
+use Scalar::Util 'weaken';
+
 has 'client';
 sub send { shift->client->send(@_) }
 
@@ -9,6 +11,8 @@ has logs => sub { [] };
 
 has message_cb => sub {
   my $self = shift;
+  weaken $self;
+
   sub {
     my ($log, $level, @lines) = @_;
     $self->log_message($level, @lines);

@@ -1,6 +1,8 @@
 package Devlicious::Client::Network;
 use Mojo::Base -base;
 
+use Scalar::Util 'weaken';
+
 has 'client';
 sub send { shift->client->send(@_) }
 
@@ -10,7 +12,11 @@ has transactions => sub { {} };
 
 has start_cb => sub {
   my $self = shift;
-  sub { $self->ua_start(pop) }
+  weaken $self;
+
+  sub {
+    $self->ua_start(pop)
+  }
 };
 
 sub watch_ua {

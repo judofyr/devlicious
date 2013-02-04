@@ -42,7 +42,9 @@ has dom => sub {
 
 has handlers => sub {
   my $self = shift;
-  [$self, $self->network, $self->console, $self->dom];
+  my $res = [$self, $self->network, $self->console, $self->dom];
+  weaken $res->[0];
+  $res;
 };
 
 sub is_connected { !!shift->tx }
@@ -60,7 +62,17 @@ sub connect {
     $self->log->debug("Devlicious connected");
 
     Mojo::IOLoop->stream($tx->connection)->timeout(0);
+
     $self->tx($tx);
+    weaken $self->{tx};
+
+    # Avoid cycle. The UA will have a reference to this callback, this
+    # callback closes over $self and $self has a reference back to the
+    # UA. It's safe to weaken this refrence when we are connected to the
+    # gateway because the IOLoop will (indirectly) have a reference to
+    # the UA. When the connection closes, that reference will go away
+    # and we need to turn this back into a strong reference.
+    weaken $self->{ua};
 
     $self->send_meta({name => $self->name});
 
@@ -69,6 +81,9 @@ sub connect {
     });
 
     $tx->on(finish => sub {
+      # Turn it into a strong reference
+      $self->{ua} = $self->{ua};
+      delete $self->{tx};
       $self->log->debug("Devlicious disconnected");
     });
   });
