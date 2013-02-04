@@ -6,6 +6,7 @@ sub send { shift->client->send(@_) }
 
 has enabled => 0;
 has uas => sub { [] };
+has transactions => sub { {} };
 
 has start_cb => sub {
   my $self = shift;
@@ -47,6 +48,8 @@ sub ua_start {
   my ($self, $tx) = @_;
 
   my $reqId = "".++$self->{requestId};
+
+  $self->transactions->{$reqId} = $tx;
 
   $self->send(
     {
@@ -107,6 +110,10 @@ sub ua_start {
   });
 
   $tx->on(finish => sub {
+    Mojo::IOLoop->timer(60 => sub {
+      delete $self->transactions->{$reqId};
+    });
+
     $self->send(
       {
         method => 'Network.loadingFinished',
@@ -118,5 +125,20 @@ sub ua_start {
     );
   });
 }
+
+sub Network_getResponseBody {
+  my ($self, $params, $cb) = @_;
+  my $reqId = $params->{requestId};
+
+  my $body = "body no longer available";
+  my $base64 = Mojo::JSON->false;
+
+  if (my $tx = $self->transactions->{$reqId}) {
+    $body = $tx->res->body;
+  }
+
+  $cb->({body => $body, base64Encoded => $base64});
+}
+
 
 1;
