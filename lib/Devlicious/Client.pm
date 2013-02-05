@@ -11,6 +11,7 @@ use Scalar::Util 'weaken';
 use Devlicious::Client::Network;
 use Devlicious::Client::Console;
 use Devlicious::Client::DOM;
+use Devlicious::Client::Runtime;
 
 my $JSON = Mojo::JSON->new;
 has [qw/ua tx/];
@@ -40,9 +41,16 @@ has dom => sub {
   $dom;
 };
 
+has runtime => sub {
+  my $self = shift;
+  my $runtime = Devlicious::Client::Runtime->new(client => $self);
+  weaken $runtime->{client};
+  $runtime;
+};
+
 has handlers => sub {
   my $self = shift;
-  my $res = [$self, $self->network, $self->console, $self->dom];
+  my $res = [$self, $self->network, $self->console, $self->dom, $self->runtime];
   weaken $res->[0];
   $res;
 };
@@ -129,6 +137,7 @@ sub disable {
   $self->network->Network_disable;
   $self->console->Console_disable;
   delete $self->{dom};
+  delete $self->{runtime};
 }
 
 ## Capabilities

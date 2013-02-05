@@ -12,6 +12,7 @@ sub register {
   $devlicious->watch_log($app->log);
   $devlicious->dom->config($app->config);
   $devlicious->dom->route($app->routes);
+  $devlicious->runtime->app($app);
   $devlicious->connect;
 }
 
